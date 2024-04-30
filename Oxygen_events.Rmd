@@ -1,0 +1,158 @@
+---
+title: "Multi State Events"
+subtitle: "Oxygen Trajactories"
+author: "Lasse Hyldig Hansen"
+date: "2024-30-04"
+output: 
+  html_document:
+    toc: true
+---
+### Packages
+
+```{r}
+library(tidyverse)
+library(survival)
+```
+
+
+### Loading data
+
+```{r}
+init_oxycohort <- read_csv("init_oxycohort.csv")
+
+```
+
+#### Wrangling
+
+```{r}
+init_oxycohort$oxy <- factor(init_oxycohort$oxy, levels = c("None", "SimO2", "HFNC", "NIV", "IMV"))
+
+init_oxycohort <- init_oxycohort %>%
+  mutate(day = str_replace_all(redcap_event_name, c("day" = "", "_arm_1" = "")),
+         day = as.numeric(str_extract(day, "[0-9]+")))
+```
+
+
+
+#### Wrangling data
+
+```{r}
+# Assuming your data is in a dataframe called df
+df <- init_oxycohort %>%
+  arrange(icu_id, day) %>%
+  group_by(icu_id) %>%
+  mutate(
+    tstart = day,
+    tstop = lead(day),
+    event = oxy,
+    to_next = lead(oxy),
+    none = ifelse(oxy == "None", 1, 0),
+    SimO2 = ifelse(oxy == "SimO2", 1, 0),
+    HFNC = ifelse(oxy == "HFNC", 1, 0),
+    NIV = ifelse(oxy == "NIV", 1, 0),
+    IMV = ifelse(oxy == "IMV", 1, 0)
+    
+    
+  ) %>%
+  ungroup() %>%
+  filter(!is.na(tstop) & !is.na(to_next)) 
+```
+
+### Visualize how many patients are in each state from different ethnicities over time
+
+```{r}
+agg_data_0_race <- df %>%
+  group_by(day, racecat) %>%
+  summarise(count_total = n()) %>%
+  ungroup()
+
+
+agg_data_1_race <- df %>%
+  group_by(day, event, racecat) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+agg_data_2_race <- left_join(agg_data_1_race, agg_data_0_race)
+
+
+agg_data_2_race = agg_data_2_race %>% 
+      mutate(
+        percentage = (count/count_total)*100
+      )
+p_counts_race = ggplot(agg_data_1_race, aes(x = factor(day), y = count, fill = event)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Day", y = "Number of Patients", fill = "Oxygenation State") +
+  theme_minimal() +
+  facet_grid(~racecat) +
+  scale_fill_brewer(palette = "Set1")
+
+p_percentage_race = ggplot(agg_data_2_race, aes(x = factor(day), y = percentage, fill = event)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(x = "Day", y = "Proportion of Patients", fill = "Oxygenation State") +
+  theme_classic() +
+  facet_grid(~racecat) +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_manual(values = c("#0077b6",  "#344e41", "#bc6c25", "#9b2226", "#540b0e"
+  )) +
+  #scale_fill_brewer(palette = "Set1") +
+  theme(axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14, margin = margin(r = 3)),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text = element_text(size = 16))
+```
+
+### Visualize probability in state over time
+
+#### Fitting kaplan meier
+
+```{r}
+fit_adm_died = survfit(Surv(tstart, tstop, event) ~ racecat + died,
+          data = df, id = icu_id)
+
+sdat_adm_died = survfit0(fit_adm_died) %>% broom::tidy()
+
+sdat_adm_died1 = sdat_adm_died %>% 
+    mutate(
+    racecat = as.factor(str_extract(strata, "(?<=racecat=)\\w+")),
+    died = as.factor(str_extract(strata, "(?<=died=)\\w+")))
+
+
+sdat_adm_died1$state <- factor(sdat_adm_died1$state, levels = c("(s0)", "SimO2", "HFNC", "NIV", "IMV"))
+
+```
+
+#### Visualizing
+
+```{r}
+plot_events = ggplot(sdat_adm_died1,
+         aes(x = time,
+             y = estimate,
+             color = died)) +
+  geom_step() +
+  theme_bw() +
+  facet_grid(racecat~state, scales = "free", labeller = labeller(state = state_label)) +
+  coord_cartesian(xlim = c(0,15), ylim = c(0,1 )) +
+  scale_color_manual(values = c("#0072B2", "#ae2012"),
+                     labels = c("Survived", "Died")
+                    ) +
+  theme(
+        strip.text.y.right  = element_text(angle = 0),
+        strip.text = element_text(angle = 0, size = 10, face = "bold", margin = margin(t = 5, b = 5, l = 5, r = 5)),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14, margin = margin(r = 3)),        
+        strip.background = element_rect(fill = "white", color = "black", size = 0.5),
+        legend.position = "bottom",
+        axis.text.x = element_text(size=12, , colour="black"),
+        axis.text.y = element_text(size=12, colour="black", hjust = 0),
+        legend.text = element_text(size = 12, color = "black")) +
+  labs(
+    x = "Day",
+    y = "Probability in State",
+    color = ""
+  )
+
+```
+

@@ -1,0 +1,61 @@
+---
+title: "Table 1"
+subtitle: "Oxygen Trajactories"
+author: "Lasse Hyldig Hansen"
+date: "2024-30-04"
+output: 
+  html_document:
+    toc: true
+---
+
+### Load packages
+
+```{r}
+library(readr)
+library(table1)
+library(dplyr)
+library(Hmisc)
+```
+
+### Load data
+
+```{r}
+time2oxycohort <- read_csv("data/time2oxycohort.csv") %>%
+  mutate(across(where(is.character), as.factor))  # Convert all character columns to factors
+```
+
+### Wrangling
+
+```{r}
+time2oxycohort <- time2oxycohort %>%
+  dplyr::select(-icu_id) %>%
+  mutate(outcome_oxy = factor(outcome_oxy, levels = c(0, 1), labels = c("No", "Yes")))
+
+```
+
+### Making names
+
+```{r}
+# Applying labels directly to the data frame columns
+label(time2oxycohort$died) <- "Mortality"
+label(time2oxycohort$adm_quarter) <- "Admission Quarter"
+label(time2oxycohort$agegrp) <- "Age Group"
+label(time2oxycohort$bmi_category) <- "BMI Category"
+label(time2oxycohort$racecat) <- "Race"
+label(time2oxycohort$sexcat) <- "Sex"
+label(time2oxycohort$time2oxy) <- "Time to Oxygen Therapy (days)"
+label(time2oxycohort$daycount) <- "Day"
+
+```
+
+### Making table
+
+```{r}
+# Create the table
+result_table <- table1(~ died + agegrp + bmi_category + racecat + sexcat + time2oxy + daycount | outcome_oxy, 
+                       data = time2oxycohort,
+                       caption = "Table 1: Oxygen Therapy (Binary) Stratified by Oxygen Outcome",
+                       overall = F)  # Removes the overall column if not needed
+```
+
+

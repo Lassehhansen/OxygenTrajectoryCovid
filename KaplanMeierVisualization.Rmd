@@ -1,0 +1,104 @@
+---
+title: "Survival Analysis - Time to Oxygenation"
+subtitle: "Oxygen Trajactories"
+author: "Lasse Hyldig Hansen"
+date: "2024-30-04"
+output: 
+  html_document:
+    toc: true
+---
+## Packages
+
+```{r}
+library(tidyverse)
+library(survival)
+```
+
+## Data
+
+```{r}
+time2oxycohort <- read_csv("data/time2oxycohort.csv")
+
+time2oxycohort
+```
+
+```{r}
+time2oxycohort
+```
+
+
+### For Individuals who did not die
+
+
+```{r}
+time2oxycohort$agegrp = as.factor(time2oxycohort$agegrp)
+time2oxycohort$bmi_category = as.factor(time2oxycohort$bmi_category)
+time2oxycohort$sexcat = as.factor(time2oxycohort$sexcat)
+time2oxycohort$racecat = as.factor(time2oxycohort$racecat)
+time2oxycohort$died = as.factor(time2oxycohort$died)
+
+time2oxycohort_died_0 = time2oxycohort %>% filter(died == 0)
+library(survival)
+fit_race_died_controls_cox_died_0_surv = survfit(Surv(time2oxy, outcome_oxy) ~ racecat,
+          data = time2oxycohort_died_0)
+```
+
+```{r}
+p1 = ggsurvplot(fit_race_died_controls_cox_died_0_surv,
+           conf.int = TRUE,
+           #risk.table = TRUE, # Add risk table
+           #risk.table.height = 0.3,
+           fun = 'event',
+           ggtheme = theme_bw(), # Change ggplot2 theme
+           palette = c("#E7B800", "#2E9FDF", "#bc6c25"),
+           xlim = c(0, 14),
+           break.x.by = 2,
+          title = "Survived",
+           legend.title = "",
+           legend.labs = c("White", "Black / African American","Others")) +
+  labs(x="Days Since Admission",y = "Probability of Oxgen Support")
+```
+
+
+### For Individuals who died
+
+```{r}
+time2oxycohort$agegrp = as.factor(time2oxycohort$agegrp)
+time2oxycohort$bmi_category = as.factor(time2oxycohort$bmi_category)
+time2oxycohort$sexcat = as.factor(time2oxycohort$sexcat)
+time2oxycohort$racecat = as.factor(time2oxycohort$racecat)
+time2oxycohort$died = as.factor(time2oxycohort$died)
+
+time2oxycohort_died_1 = time2oxycohort %>% dplyr::filter(died == 1)
+library(survival)
+fit_race_died_controls_cox_died_1_surv = survfit(Surv(time2oxy, outcome_oxy) ~ racecat,
+          data = time2oxycohort_died_1)
+```
+
+```{r}
+ggtheme = theme_minimal() + theme(plot.title = element_text(size = 12, colour = "black"))
+
+p2 = ggsurvplot(fit_race_died_controls_cox_died_1_surv,
+           conf.int = TRUE,
+           #risk.table = TRUE, # Add risk table
+           #risk.table.height = 0.3,
+           fun = 'event',
+           title = "Died",
+           ggtheme = theme_bw(), # Change ggplot2 theme
+           palette = c("#E7B800", "#2E9FDF", "#bc6c25"),
+           xlim = c(0, 14),
+           break.x.by = 2,
+           legend.title = "",
+           legend.labs = c("White", "Black / African American","Others")) +
+  labs(x="Days Since Admission",y = "Probability of Oxgen Support") 
+```
+
+
+```{r}
+splots <- list()
+splots[[2]] <- p1
+splots[[1]] <- p2
+# Arrange multiple ggsurvplots and print the output
+res <-arrange_ggsurvplots(splots, ncol = 1, nrow = 2)
+```
+
